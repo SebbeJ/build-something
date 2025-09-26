@@ -1,0 +1,313 @@
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: saving-system
+---
+# PersistentVolumeClaim for MongoDB data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-pvc
+  namespace: saving-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+# MongoDB Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo
+  namespace: saving-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo
+  template:
+    metadata:
+      labels:
+        app: mongo
+    spec:
+      containers:
+      - name: mongo
+        image: mongo:7
+        ports:
+        - containerPort: 27017
+        volumeMounts:
+        - name: mongo-storage
+          mountPath: /data/db
+        readinessProbe:
+          tcpSocket:
+            port: 27017
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 27017
+          initialDelaySeconds: 20
+          periodSeconds: 20
+      volumes:
+      - name: mongo-storage
+        persistentVolumeClaim:
+          claimName: mongo-pvc
+---
+# Mongo Service (ClusterIP, internal)
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: saving-system
+spec:
+  selector:
+    app: mongo
+  ports:
+  - port: 27017
+    targetPort: 27017
+---
+# Redis Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: saving-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redislabs/redismod
+        ports:
+        - containerPort: 6379
+        readinessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 20
+          periodSeconds: 20
+---
+# Redis Service (ClusterIP, internal)
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: saving-system
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+---
+# data-saver Deployment (Flask)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-saver
+  namespace: saving-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: data-saver
+  template:
+    metadata:
+      labels:
+        app: data-saver
+    spec:
+      containers:
+      - name: data-saver
+        image: data-saver:latest           # change to your registry/image tag
+        imagePullPolicy: IfNotPresent
+        workingDir: /code
+        ports:
+        - containerPort: 5000
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: MONGO_HOST
+          value: "mongo"
+        - name: MONGO_PORT
+          value: "27017"
+        - name: REDIS_HOST
+          value: "redis"
+        - name: REDIS_PORT
+          value: "6379"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+---
+# data-saver Service (exposed externally for development)
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-saver
+  namespace: saving-system
+spec:
+  type: NodePort                # alternatives: LoadBalancer or ClusterIP + Ingress
+  selector:
+    app: data-saver
+  ports:
+    - port: 5000
+      targetPort: 5000
+      nodePort: 30000
+---
+# search-query Deployment (Flask front-end)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-query
+  namespace: saving-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: search-query
+  template:
+    metadata:
+      labels:
+        app: search-query
+    spec:
+      containers:
+      - name: search-query
+        image: search-query:latest      # change to your registry/image tag
+        imagePullPolicy: IfNotPresent
+        workingDir: /code
+        ports:
+        - containerPort: 5001
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: DATA_SAVER_URL
+          value: "http://data-saver:5000/dataSaver/search"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 5001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5001
+          initialDelaySeconds: 10
+          periodSeconds: 10
+---
+# search-query Service (exposed externally for development)
+apiVersion: v1
+kind: Service
+metadata:
+  name: search-query
+  namespace: saving-system
+spec:
+  type: NodePort
+  selector:
+    app: search-query
+  ports:
+    - port: 5001
+      targetPort: 5001
+      nodePort: 30001
+---
+# sentence-service Deployment (internal)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentence-service
+  namespace: saving-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sentence-service
+  template:
+    metadata:
+      labels:
+        app: sentence-service
+    spec:
+      containers:
+      - name: sentence-service
+        image: sentence-service:latest
+        imagePullPolicy: IfNotPresent
+        workingDir: /code
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        ports:
+        - containerPort: 5000
+---
+# sentence-service Service (ClusterIP internal)
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentence-service
+  namespace: saving-system
+spec:
+  selector:
+    app: sentence-service
+  ports:
+    - port: 5000
+      targetPort: 5000
+---
+# book-service Deployment (internal)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: book-service
+  namespace: saving-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: book-service
+  template:
+    metadata:
+      labels:
+        app: book-service
+    spec:
+      containers:
+      - name: book-service
+        image: book-service:latest
+        imagePullPolicy: IfNotPresent
+        workingDir: /code
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        ports:
+        - containerPort: 5000
+---
+# book-service Service (ClusterIP internal)
+apiVersion: v1
+kind: Service
+metadata:
+  name: book-service
+  namespace: saving-system
+spec:
+  selector:
+    app: book-service
+  ports:
+    - port: 5000
+      targetPort: 5000

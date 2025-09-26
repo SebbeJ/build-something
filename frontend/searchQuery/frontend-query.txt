@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socrates App</title>
+</head>
+<body style="font-family:sans-serif; text-align:center; margin-top:50px;">
+    <h1>Ask Socrates something:</h1>
+  
+    <form method="POST">
+        <input type="text" name="statement" placeholder="Write your statement..." />
+        <button type="submit">Ask</button>
+    </form>
+
+    <h2>Socrates would say...</h2>
+
+    {% if response %}
+        <h3>{{  response  }}</h2>
+    {% endif %}
+</body>
+</html>

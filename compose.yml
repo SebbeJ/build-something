@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redislabs/redismod
+    ports:
+    - "6379:6379"
+    networks:
+      - saving_network
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    container_name: mongo
+    networks:
+      - saving_network
+
+  # mongo_test:
+  #   build: .
+  #   depends_on:
+  #     - mongo
+  #   volumes:
+  #     - .:/code
+  #   working_dir: /code
+  #   environment:
+  #   - PYTHONUNBUFFERED=1  # This is crucial for seeing prints!
+
+  sentence_service:
+    build: ./sentenceService
+    depends_on: 
+    - mongo
+    working_dir: /code
+    environment:
+    - PYTHONUNBUFFERED=1
+
+  book_service:
+    build: ./bookService
+    depends_on:
+    - mongo
+    working_dir: /code
+    environment:
+    - PYTHONUNBUFFERED=1
+  
+  # add_book:
+  #   build: ./frontend/addBook
+  #   depends_on:
+  #   - data_saver
+  #   working_dir: /code
+  #   environment:
+  #   - PYTHONUNBUFFERED=1
+  #   ports:
+  #   - "5002:5002"
+  #   container_name: addBook
+  #   networks:
+  #   - saving_network
+
+  search_query:
+    build: ./frontend/searchQuery
+    depends_on:
+      - data_saver
+    working_dir: /code
+    environment:
+      - PYTHONUNBUFFERED=1
+    ports:
+    - "5001:5001"
+    container_name: searchQuery
+    networks:
+      - saving_network
+
+  data_saver:
+    build: ./dataSaver
+    depends_on:
+    - mongo
+    - redis
+    working_dir: /code
+    environment:
+    - PYTHONUNBUFFERED=1
+    ports:
+    - "5000:5000"
+    container_name: dataSaver
+    networks:
+    - saving_network
+
+volumes:
+  mongo_data:
+
+networks:
+  saving_network:
+    driver: bridge

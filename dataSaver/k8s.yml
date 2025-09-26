@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datasaver-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: datasaver
+  template:
+    metadata:
+      labels:
+        app: datasaver
+    spec:
+      containers:
+      - name: datasaver
+        image: caliban0204/data_saver:latest # Change if using a remote registry
+        ports:
+        - containerPort: 5000
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: datasaver-service
+spec:
+  type: ClusterIP
+  selector:
+    app: datasaver
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
