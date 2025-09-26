@@ -8,9 +8,9 @@ metadata:
     nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type"
     nginx.ingress.kubernetes.io/enable-cors: "true"
 spec:
+  ingressClassName: nginx
   rules:
-    - host: ingress.bs.local
-      http:
+    - http:  # No host specified - will match any host
         paths:
           - path: /dataSaver
             pathType: Prefix
@@ -18,4 +18,11 @@ spec:
               service:
                 name: datasaver-service
                 port:
-                  number: 5000
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: searchquery-service
+                port:
+                  number: 80

@@ -9,6 +9,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 COPY . /code
 
+EXPOSE 80
+
 ENTRYPOINT ["python3"]
 CMD ["searchQuery.py"]
 

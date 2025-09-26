@@ -1,16 +1,12 @@
 from pymongo import MongoClient
 from flask import request, Flask, jsonify
-import redis
-import datetime
-import json
 import urllib.request
 
 # Connect to MongoDB
-client = MongoClient('mongodb://mongo:27017/')
+client = MongoClient('mongodb://mongodb-service:27017/')
 db = client.myapp
 collection = db.data
 
-r = redis.Redis(host='redis', port=6379, db=0)
 
 app = Flask(__name__)
 
@@ -18,21 +14,19 @@ app = Flask(__name__)
 def save_data():
     params = request.json
 
-    with urllib.request.urlopen(params["url"]) as web:
-        content = web.read().decode('utf-8')
+    # with urllib.request.urlopen(params["url"]) as web:
+    #     content = web.read().decode('utf-8')
 
     book_name = params["name"]
 
     print(f'saver type name: {type(book_name)}')
 
-    data = {"name": book_name, "content" : content}
+    data = {"name": book_name, "content" : params["url"]}
     
     # Insert data
     result = collection.insert_one(data)
     print(f"saving data with name: {book_name}")
     print(f"Data saved with ID: {result.inserted_id}")
-
-    r.rpush("text_names", book_name)
     
     return jsonify({
         "message": "Data saved successfully",
@@ -74,7 +68,7 @@ def search_data():
     contents = document.get("content")
     print(f"Found contents: {contents}")
 
-    return jsonify({"contents": contents}), 200
+    return jsonify({"content": contents}), 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
